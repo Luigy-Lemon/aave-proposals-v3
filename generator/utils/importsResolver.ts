@@ -18,7 +18,7 @@ function generateAddressBookImports(code: string) {
   const imports: string[] = [];
   let root = '';
   // lookbehind for I to not match interfaces like IAaveV3ConfigEngine
-  const addressBookMatch = code.match(/(?<!I)(AaveV[2..3][A-Za-z]+)(?<![Assets|EModes])\b\./);
+  const addressBookMatch = code.match(/(?<!I)(AaveV[2..3][A-Za-z]+)(?<!(Assets)|(EModes))\b\./);
   if (addressBookMatch) {
     imports.push(addressBookMatch[1]);
     root = addressBookMatch[1];
@@ -100,6 +100,9 @@ export function prefixWithImports(code: string) {
   }
   if (findMatch(code, 'forceApprove')) {
     imports += `import {SafeERC20} from 'solidity-utils/contracts/oz-common/SafeERC20.sol';\n`;
+  }
+  if (findMatch(code, 'GovernanceV3Ethereum')) {
+    imports += `import {GovernanceV3Ethereum} from 'aave-address-book/GovernanceV3Ethereum.sol';\n`;
   }
 
   return imports + code;

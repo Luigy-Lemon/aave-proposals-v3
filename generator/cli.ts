@@ -1,7 +1,7 @@
 import path from 'path';
 import {Command, Option} from 'commander';
 import {CHAIN_TO_CHAIN_ID, getDate, getPoolChain, isV2Pool, pascalCase} from './common';
-import {input, checkbox} from '@inquirer/prompts';
+import {input, checkbox, select} from '@inquirer/prompts';
 import {
   CodeArtifact,
   ConfigFile,
@@ -12,6 +12,7 @@ import {
   PoolCache,
   PoolConfigs,
   PoolIdentifier,
+  VOTING_NETWORK,
 } from './types';
 import {flashBorrower} from './features/flashBorrower';
 import {capsUpdates} from './features/capsUpdates';
@@ -39,6 +40,12 @@ program
   .addOption(new Option('-a, --author <string>', 'author'))
   .addOption(new Option('-d, --discussion <string>', 'forum link'))
   .addOption(new Option('-s, --snapshot <string>', 'snapshot link'))
+  .addOption(
+    new Option(
+      '-v, --votingNetwork <votingNetwork...>',
+      'network where voting should take place for the proposal',
+    ).choices(Object.values(VOTING_NETWORK)),
+  )
   .addOption(new Option('-c, --configFile <string>', 'path to config file'))
   .allowExcessArguments(false)
   .parse(process.argv);
@@ -75,6 +82,46 @@ const FEATURE_MODULES_V3 = [
   PLACEHOLDER_MODULE,
 ];
 
+async function generateDeterministicPoolCache(pool: PoolIdentifier): Promise<PoolCache> {
+  const chain = getPoolChain(pool);
+  const client = CHAIN_ID_CLIENT_MAP[CHAIN_TO_CHAIN_ID[chain]];
+  return {blockNumber: Number(await getBlockNumber(client))};
+}
+
+async function fetchPoolOptions(pool: PoolIdentifier) {
+  poolConfigs[pool] = {
+    configs: {},
+    artifacts: [],
+    cache: await generateDeterministicPoolCache(pool),
+  };
+
+  const v2 = isV2Pool(pool);
+  const features = await checkbox({
+    message: `What do you want to do on ${pool}?`,
+    choices: v2
+      ? FEATURE_MODULES_V2.map((m) => ({value: m.value, name: m.description}))
+      : FEATURE_MODULES_V3.map((m) => ({value: m.value, name: m.description})),
+  });
+  for (const feature of features) {
+    const module = v2
+      ? FEATURE_MODULES_V2.find((m) => m.value === feature)!
+      : FEATURE_MODULES_V3.find((m) => m.value === feature)!;
+    poolConfigs[pool]!.configs[feature] = await module.cli({
+      options,
+      pool,
+      cache: poolConfigs[pool]!.cache,
+    });
+    poolConfigs[pool]!.artifacts.push(
+      module.build({
+        options,
+        pool,
+        cfg: poolConfigs[pool]!.configs[feature],
+        cache: poolConfigs[pool]!.cache,
+      }),
+    );
+  }
+}
+
 if (options.configFile) {
   const {config: cfgFile}: {config: ConfigFile} = await import(
     path.join(process.cwd(), options.configFile)
@@ -83,19 +130,23 @@ if (options.configFile) {
   poolConfigs = cfgFile.poolOptions as any;
   for (const pool of options.pools) {
     const v2 = isV2Pool(pool);
-    poolConfigs[pool]!.artifacts = [];
-    for (const feature of Object.keys(poolConfigs[pool]!.configs)) {
-      const module = v2
-        ? FEATURE_MODULES_V2.find((m) => m.value === feature)!
-        : FEATURE_MODULES_V3.find((m) => m.value === feature)!;
-      poolConfigs[pool]!.artifacts.push(
-        module.build({
-          options,
-          pool,
-          cfg: poolConfigs[pool]!.configs[feature],
-          cache: poolConfigs[pool]!.cache,
-        })
-      );
+    if (poolConfigs[pool]) {
+      poolConfigs[pool]!.artifacts = [];
+      for (const feature of Object.keys(poolConfigs[pool]!.configs)) {
+        const module = v2
+          ? FEATURE_MODULES_V2.find((m) => m.value === feature)!
+          : FEATURE_MODULES_V3.find((m) => m.value === feature)!;
+        poolConfigs[pool]!.artifacts.push(
+          module.build({
+            options,
+            pool,
+            cfg: poolConfigs[pool]!.configs[feature],
+            cache: poolConfigs[pool]!.cache,
+          }),
+        );
+      }
+    } else {
+      await fetchPoolOptions(pool);
     }
   }
 } else {
@@ -150,43 +201,19 @@ if (options.configFile) {
     });
   }
 
-  async function generateDeterministicPoolCache(pool: PoolIdentifier): Promise<PoolCache> {
-    const chain = getPoolChain(pool);
-    const client = CHAIN_ID_CLIENT_MAP[CHAIN_TO_CHAIN_ID[chain]];
-    return {blockNumber: Number(await getBlockNumber(client))};
+  if (!options.votingNetwork) {
+    options.votingNetwork = await select({
+      message: 'Select network where voting should takes place for the proposal',
+      choices: Object.values(VOTING_NETWORK).map((v) => ({
+        name: v != VOTING_NETWORK.POLYGON ? v : VOTING_NETWORK.POLYGON + ' (DEFAULT)',
+        value: v,
+      })),
+      default: VOTING_NETWORK.POLYGON,
+    });
   }
 
   for (const pool of options.pools) {
-    poolConfigs[pool] = {
-      configs: {},
-      artifacts: [],
-      cache: await generateDeterministicPoolCache(pool),
-    };
-    const v2 = isV2Pool(pool);
-    const features = await checkbox({
-      message: `What do you want to do on ${pool}?`,
-      choices: v2
-        ? FEATURE_MODULES_V2.map((m) => ({value: m.value, name: m.description}))
-        : FEATURE_MODULES_V3.map((m) => ({value: m.value, name: m.description})),
-    });
-    for (const feature of features) {
-      const module = v2
-        ? FEATURE_MODULES_V2.find((m) => m.value === feature)!
-        : FEATURE_MODULES_V3.find((m) => m.value === feature)!;
-      poolConfigs[pool]!.configs[feature] = await module.cli({
-        options,
-        pool,
-        cache: poolConfigs[pool]!.cache,
-      });
-      poolConfigs[pool]!.artifacts.push(
-        module.build({
-          options,
-          pool,
-          cfg: poolConfigs[pool]!.configs[feature],
-          cache: poolConfigs[pool]!.cache,
-        })
-      );
-    }
+    await fetchPoolOptions(pool);
   }
 }
 
