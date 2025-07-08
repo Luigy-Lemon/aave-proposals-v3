@@ -20,6 +20,7 @@ import {AaveV3Arbitrum} from 'aave-address-book/AaveV3Arbitrum.sol';
 import {AaveV3EthereumAssets} from 'aave-address-book/AaveV3Ethereum.sol';
 import {AaveV3ArbitrumAssets} from 'aave-address-book/AaveV3Arbitrum.sol';
 import {AaveV3BaseAssets} from 'aave-address-book/AaveV3Base.sol';
+import {AaveV3AvalancheAssets} from 'aave-address-book/AaveV3Avalanche.sol';
 import {CCIPUtils} from './utils/CCIPUtils.sol';
 import {GHOLaunchConstants} from './utils/GHOLaunchConstants.sol';
 
@@ -43,6 +44,7 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
   uint64 internal constant GNOSIS_CHAIN_SELECTOR = CCIPUtils.GNOSIS_CHAIN_SELECTOR;
   uint64 internal constant ETH_CHAIN_SELECTOR = CCIPUtils.ETH_CHAIN_SELECTOR;
   uint64 internal constant BASE_CHAIN_SELECTOR = CCIPUtils.BASE_CHAIN_SELECTOR;
+  uint64 internal constant AVAX_CHAIN_SELECTOR = CCIPUtils.AVAX_CHAIN_SELECTOR;
   uint128 public constant CCIP_RATE_LIMIT_CAPACITY = GHOLaunchConstants.CCIP_RATE_LIMIT_CAPACITY;
   uint128 public constant CCIP_RATE_LIMIT_REFILL_RATE =
     GHOLaunchConstants.CCIP_RATE_LIMIT_REFILL_RATE;
@@ -55,13 +57,16 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
     IEVM2EVMOnRamp(GHOLaunchConstants.ETH_BASE_ON_RAMP);
   IEVM2EVMOnRamp internal constant GNOSIS_ON_RAMP =
     IEVM2EVMOnRamp(GHOLaunchConstants.ETH_GNO_ON_RAMP);
+  IEVM2EVMOnRamp internal constant AVAX_ON_RAMP =
+    IEVM2EVMOnRamp(GHOLaunchConstants.ETH_AVAX_ON_RAMP);
   IEVM2EVMOffRamp_1_5 internal constant ARB_OFF_RAMP =
     IEVM2EVMOffRamp_1_5(GHOLaunchConstants.ETH_ARB_OFF_RAMP);
   IEVM2EVMOffRamp_1_5 internal constant BASE_OFF_RAMP =
     IEVM2EVMOffRamp_1_5(GHOLaunchConstants.ETH_BASE_OFF_RAMP);
   IEVM2EVMOffRamp_1_5 internal constant GNOSIS_OFF_RAMP =
     IEVM2EVMOffRamp_1_5(GHOLaunchConstants.ETH_GNO_OFF_RAMP);
-
+  IEVM2EVMOffRamp_1_5 internal constant AVAX_OFF_RAMP =
+    IEVM2EVMOffRamp_1_5(GHOLaunchConstants.ETH_AVAX_OFF_RAMP);
   address public constant NEW_REMOTE_TOKEN_GNOSIS = GHOLaunchConstants.GNO_GHO_TOKEN;
   address internal constant NEW_REMOTE_POOL_ARB = GhoArbitrum.GHO_CCIP_TOKEN_POOL;
   address internal constant NEW_REMOTE_POOL_BASE = GhoBase.GHO_CCIP_TOKEN_POOL;
@@ -87,7 +92,7 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
   error InvalidSourcePoolAddress(bytes);
 
   function setUp() public {
-    vm.createSelectFork(vm.rpcUrl('mainnet'), 22589899);
+    vm.createSelectFork(vm.rpcUrl('mainnet'), 22872021);
     proposal = new AaveV3Ethereum_GHOGnosisLaunch_20250421();
     _validateConstants();
     executePayload(vm, address(proposal));
@@ -111,7 +116,8 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
     _assertOffRamp(BASE_OFF_RAMP, BASE_CHAIN_SELECTOR, ETH_CHAIN_SELECTOR, ROUTER);
     _assertOnRamp(GNOSIS_ON_RAMP, ETH_CHAIN_SELECTOR, GNOSIS_CHAIN_SELECTOR, ROUTER);
     _assertOffRamp(GNOSIS_OFF_RAMP, GNOSIS_CHAIN_SELECTOR, ETH_CHAIN_SELECTOR, ROUTER);
-
+    _assertOnRamp(AVAX_ON_RAMP, ETH_CHAIN_SELECTOR, AVAX_CHAIN_SELECTOR, ROUTER);
+    _assertOffRamp(AVAX_OFF_RAMP, AVAX_CHAIN_SELECTOR, ETH_CHAIN_SELECTOR, ROUTER);
     assertEq(NEW_GHO_CCIP_STEWARD.RISK_COUNCIL(), RISK_COUNCIL);
     assertEq(NEW_GHO_CCIP_STEWARD.GHO_TOKEN(), AaveV3EthereumAssets.GHO_UNDERLYING);
     assertEq(NEW_GHO_CCIP_STEWARD.GHO_TOKEN_POOL(), address(NEW_TOKEN_POOL));
@@ -229,10 +235,11 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
 
   function test_tokenPoolConfig() public view {
     assertEq(NEW_TOKEN_POOL.typeAndVersion(), 'LockReleaseTokenPool 1.5.1');
-    assertEq(NEW_TOKEN_POOL.getSupportedChains().length, 3);
+    assertEq(NEW_TOKEN_POOL.getSupportedChains().length, 4);
     assertEq(NEW_TOKEN_POOL.getSupportedChains()[0], ARB_CHAIN_SELECTOR);
     assertEq(NEW_TOKEN_POOL.getSupportedChains()[1], BASE_CHAIN_SELECTOR);
-    assertEq(NEW_TOKEN_POOL.getSupportedChains()[2], GNOSIS_CHAIN_SELECTOR);
+    assertEq(NEW_TOKEN_POOL.getSupportedChains()[2], AVAX_CHAIN_SELECTOR);
+    assertEq(NEW_TOKEN_POOL.getSupportedChains()[3], GNOSIS_CHAIN_SELECTOR);
   }
 
   function test_basePoolConfig() public view {
@@ -243,6 +250,10 @@ contract AaveV3Ethereum_GHOGnosisLaunch_20250421_Test is ProtocolV3TestBase {
     assertEq(
       NEW_TOKEN_POOL.getRemoteToken(BASE_CHAIN_SELECTOR),
       abi.encode(address(AaveV3BaseAssets.GHO_UNDERLYING))
+    );
+    assertEq(
+      NEW_TOKEN_POOL.getRemoteToken(AVAX_CHAIN_SELECTOR),
+      abi.encode(address(AaveV3AvalancheAssets.GHO_UNDERLYING))
     );
     assertEq(
       NEW_TOKEN_POOL.getRemoteToken(GNOSIS_CHAIN_SELECTOR),

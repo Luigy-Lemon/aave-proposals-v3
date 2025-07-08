@@ -30,10 +30,10 @@ import {GHOLaunchConstants} from './utils/GHOLaunchConstants.sol';
  * - Snapshot: https://snapshot.box/#/s:aavedao.eth/proposal/0x62996204d8466d603fe8c953176599db02a23f440a682ff15ba2d0ca63dda386
  */
 contract AaveV3Gnosis_GHOGnosisLaunch_20250421 is IProposalGenericExecutor {
-  uint64 public constant BASE_CHAIN_SELECTOR = CCIPUtils.BASE_CHAIN_SELECTOR;
   uint64 public constant ARB_CHAIN_SELECTOR = CCIPUtils.ARB_CHAIN_SELECTOR;
   uint64 public constant ETH_CHAIN_SELECTOR = CCIPUtils.ETH_CHAIN_SELECTOR;
   uint64 public constant AVAX_CHAIN_SELECTOR = CCIPUtils.AVAX_CHAIN_SELECTOR;
+  uint64 public constant BASE_CHAIN_SELECTOR = CCIPUtils.BASE_CHAIN_SELECTOR;
 
   uint128 public constant CCIP_BUCKET_CAPACITY = GHOLaunchConstants.CCIP_BUCKET_CAPACITY;
 
